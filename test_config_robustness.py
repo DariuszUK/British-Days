@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import tempfile
+import shutil
 from database import DatabaseManager
 
 print("=" * 70)
@@ -147,7 +148,6 @@ except Exception as e:
 # Test 7: Data directory creation
 print("\n7. Testing data directory creation...")
 try:
-    import shutil
     test_data_dir = 'TestDirectoryCreation'
     
     # Make sure it doesn't exist
@@ -175,7 +175,6 @@ except Exception as e:
 # Test 8: Database operations with custom config
 print("\n8. Testing database operations with custom config...")
 try:
-    import shutil
     test_data_dir = 'TestDBOperations'
     
     # Clean up if exists
