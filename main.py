@@ -23,8 +23,8 @@ class BritishDaysApp:
         self.root = root
         self.config = self._load_config()
         
-        # Initialize database and searcher
-        self.db = DatabaseManager()
+        # Initialize database and searcher with shared config
+        self.db = DatabaseManager(config=self.config)
         self.searcher = SlangSearcher()
         
         # Setup window
@@ -41,17 +41,38 @@ class BritishDaysApp:
         self.auto_search_on_startup()
     
     def _load_config(self):
-        """Load configuration."""
+        """Load configuration with proper error handling and defaults.
+        
+        Returns:
+            dict: Configuration with all required keys
+        """
+        # Define default configuration
+        default_config = {
+            'window_title': 'British Days - Slang Collector',
+            'window_width': 800,
+            'window_height': 600,
+            'data_directory': 'Data',
+            'database_name': 'british_slang.db'
+        }
+        
         try:
             with open('config.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {
-                'window_title': 'British Days - Slang Collector',
-                'window_width': 800,
-                'window_height': 600,
-                'data_directory': 'data'  # Default data directory
-            }
+                loaded_config = json.load(f)
+                
+            # Merge loaded config with defaults (loaded config takes precedence)
+            config = default_config.copy()
+            config.update(loaded_config)
+            return config
+            
+        except FileNotFoundError:
+            print("Warning: config.json not found. Using default configuration.")
+            return default_config
+        except json.JSONDecodeError as e:
+            print(f"Warning: config.json is malformed: {e}. Using default configuration.")
+            return default_config
+        except Exception as e:
+            print(f"Warning: Error loading config: {e}. Using default configuration.")
+            return default_config
     
     def _setup_window(self):
         """Setup the main window."""
