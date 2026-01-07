@@ -12,6 +12,20 @@ A single-window Windows application that automatically searches for British slan
 
 ## Installation
 
+### Quick Start (Windows)
+
+**The easiest way to run the application on Windows:**
+
+1. Download or clone this repository
+2. Double-click `run.bat`
+
+The batch file will automatically:
+- Check if Python is installed
+- Install required dependencies
+- Generate PNG assets if needed
+- Create the Data directory
+- Run the application
+
 ### Running from Source
 
 1. Install Python 3.8 or higher
@@ -27,6 +41,12 @@ A single-window Windows application that automatically searches for British slan
    ```bash
    python main.py
    ```
+
+**Alternative:** Run the setup script first:
+```bash
+python setup.py
+python main.py
+```
 
 ### Building Windows Executable
 

@@ -44,7 +44,15 @@ class BritishDaysApp:
         try:
             with open('config.json', 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except FileNotFoundError:
+            print("Warning: config.json not found. Using default configuration.")
+            return {
+                'window_title': 'British Days - Slang Collector',
+                'window_width': 800,
+                'window_height': 600
+            }
+        except Exception as e:
+            print(f"Warning: Error loading config.json: {e}. Using default configuration.")
             return {
                 'window_title': 'British Days - Slang Collector',
                 'window_width': 800,
@@ -72,6 +80,17 @@ class BritishDaysApp:
         """Load all PNG assets."""
         assets_dir = 'assets'
         
+        # Check if assets directory exists
+        if not os.path.exists(assets_dir):
+            error_msg = (
+                f"Assets directory '{assets_dir}' not found!\n\n"
+                "Please run: python generate_assets.py\n"
+                "This will create all required PNG files."
+            )
+            print(error_msg)
+            messagebox.showerror("Missing Assets", error_msg)
+            raise FileNotFoundError(error_msg)
+        
         try:
             # Load background
             bg_img = Image.open(os.path.join(assets_dir, 'background.png'))
@@ -95,9 +114,20 @@ class BritishDaysApp:
             logo_img = Image.open(os.path.join(assets_dir, 'logo.png'))
             self.images['logo'] = ImageTk.PhotoImage(logo_img)
             
+        except FileNotFoundError as e:
+            error_msg = (
+                f"Required PNG asset not found: {e}\n\n"
+                "Please run: python generate_assets.py\n"
+                "This will create all required PNG files."
+            )
+            print(error_msg)
+            messagebox.showerror("Missing Asset File", error_msg)
+            raise
         except Exception as e:
-            print(f"Error loading assets: {e}")
-            messagebox.showerror("Error", f"Failed to load PNG assets: {e}")
+            error_msg = f"Error loading assets: {e}\n\nPlease check that Pillow is installed: pip install Pillow"
+            print(error_msg)
+            messagebox.showerror("Error", error_msg)
+            raise
     
     def _create_gui(self):
         """Create the GUI using PNG elements."""
@@ -296,9 +326,32 @@ class BritishDaysApp:
 
 def main():
     """Main entry point."""
-    root = tk.Tk()
-    app = BritishDaysApp(root)
-    root.mainloop()
+    try:
+        root = tk.Tk()
+        app = BritishDaysApp(root)
+        root.mainloop()
+    except Exception as e:
+        import traceback
+        error_msg = f"Error starting British Days application:\n\n{str(e)}\n\n"
+        error_msg += "Please ensure you have:\n"
+        error_msg += "1. Installed dependencies: pip install -r requirements.txt\n"
+        error_msg += "2. Generated PNG assets: python generate_assets.py\n"
+        error_msg += "3. Created Data directory (automatic on first run)\n\n"
+        error_msg += f"Full error:\n{traceback.format_exc()}"
+        
+        print(error_msg)
+        
+        # Try to show messagebox if tkinter is available
+        try:
+            import tkinter.messagebox as mb
+            root = tk.Tk()
+            root.withdraw()
+            mb.showerror("British Days - Error", error_msg[:500] + "\n\nSee console for full error.")
+            root.destroy()
+        except:
+            pass
+        
+        sys.exit(1)
 
 
 if __name__ == '__main__':
