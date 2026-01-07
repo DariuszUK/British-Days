@@ -39,6 +39,14 @@ class BritishDaysApp:
         # Perform initial search on startup
         self.auto_search_on_startup()
     
+    def _get_default_config(self):
+        """Get default configuration."""
+        return {
+            'window_title': 'British Days - Slang Collector',
+            'window_width': 800,
+            'window_height': 600
+        }
+    
     def _load_config(self):
         """Load configuration."""
         try:
@@ -46,18 +54,10 @@ class BritishDaysApp:
                 return json.load(f)
         except FileNotFoundError:
             print("Warning: config.json not found. Using default configuration.")
-            return {
-                'window_title': 'British Days - Slang Collector',
-                'window_width': 800,
-                'window_height': 600
-            }
+            return self._get_default_config()
         except Exception as e:
             print(f"Warning: Error loading config.json: {e}. Using default configuration.")
-            return {
-                'window_title': 'British Days - Slang Collector',
-                'window_width': 800,
-                'window_height': 600
-            }
+            return self._get_default_config()
     
     def _setup_window(self):
         """Setup the main window."""
@@ -348,7 +348,8 @@ def main():
             root.withdraw()
             mb.showerror("British Days - Error", error_msg[:500] + "\n\nSee console for full error.")
             root.destroy()
-        except:
+        except Exception:
+            # Silently fail if we can't show a messagebox
             pass
         
         sys.exit(1)
