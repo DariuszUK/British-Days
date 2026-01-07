@@ -14,27 +14,66 @@ from pathlib import Path
 class DatabaseManager:
     """Manages the SQLite database for British slang terms."""
     
-    def __init__(self, config_path='config.json'):
-        """Initialize database manager."""
-        self.config = self._load_config(config_path)
+    def __init__(self, config_path='config.json', config=None):
+        """Initialize database manager.
+        
+        Args:
+            config_path: Path to config file (default: 'config.json')
+            config: Pre-loaded config dict to use instead of loading from file
+        """
+        self.config = config if config is not None else self._load_config(config_path)
         self.data_dir = self._get_data_directory()
-        self.db_path = os.path.join(self.data_dir, self.config['database_name'])
+        self.db_path = os.path.join(self.data_dir, self.config.get('database_name', 'british_slang.db'))
         self._initialize_database()
     
     def _load_config(self, config_path):
-        """Load configuration from JSON file."""
+        """Load configuration from JSON file with proper error handling and defaults.
+        
+        Args:
+            config_path: Path to the JSON config file
+            
+        Returns:
+            dict: Configuration with all required keys
+        """
+        # Define default configuration
+        default_config = {
+            'data_directory': 'Data',
+            'database_name': 'british_slang.db',
+            'window_title': 'British Days - Slang Collector',
+            'window_width': 800,
+            'window_height': 600
+        }
+        
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                loaded_config = json.load(f)
+                
+            # Merge loaded config with defaults (loaded config takes precedence)
+            config = default_config.copy()
+            config.update(loaded_config)
+            return config
+            
         except FileNotFoundError:
-            # Default configuration
-            return {
-                'data_directory': 'Data',
-                'database_name': 'british_slang.db'
-            }
+            # Config file doesn't exist, use defaults
+            print(f"Warning: Config file '{config_path}' not found. Using default configuration.")
+            return default_config
+        except json.JSONDecodeError as e:
+            # Config file is malformed
+            print(f"Warning: Config file '{config_path}' is malformed: {e}. Using default configuration.")
+            return default_config
+        except Exception as e:
+            # Any other error
+            print(f"Warning: Error loading config from '{config_path}': {e}. Using default configuration.")
+            return default_config
     
     def _get_data_directory(self):
-        """Get the Data directory path relative to the executable."""
+        """Get the Data directory path relative to the executable.
+        
+        Creates the directory if it doesn't exist.
+        
+        Returns:
+            str: Path to the data directory
+        """
         # Get the directory where the script/exe is located
         if getattr(sys, 'frozen', False):
             # Running as compiled executable
@@ -43,10 +82,17 @@ class DatabaseManager:
             # Running as script
             base_path = os.path.dirname(os.path.abspath(__file__))
         
-        data_dir = os.path.join(base_path, self.config['data_directory'])
+        # Use .get() with default to safely access data_directory
+        data_dir_name = self.config.get('data_directory', 'Data')
+        data_dir = os.path.join(base_path, data_dir_name)
         
         # Create directory if it doesn't exist
-        os.makedirs(data_dir, exist_ok=True)
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: Could not create data directory '{data_dir}': {e}")
+            print(f"Using current directory instead.")
+            data_dir = base_path
         
         return data_dir
     
