@@ -5,6 +5,7 @@ Handles SQLite database operations for storing British slang/phrases.
 """
 import sqlite3
 import os
+import sys
 import json
 from datetime import datetime
 from pathlib import Path

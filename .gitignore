@@ -38,3 +38,5 @@ Thumbs.db
 
 # Application specific
 *.log
+Data/
+*.db
