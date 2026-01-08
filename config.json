@@ -4,9 +4,22 @@
     "window_title": "British Days - Slang Collector",
     "window_width": 800,
     "window_height": 600,
+    "column_widths": {
+        "#0": 50,
+        "term": 120,
+        "definition": 250,
+        "example": 200,
+        "category": 100,
+        "polish": 150,
+        "pronunciation": 120
+    },
     "search_api": {
-        "type": "mock",
-        "endpoint": "https://api.dictionaryapi.dev/api/v2/entries/en/",
+        "type": "api",
+        "sources": ["wikipedia", "wiktionary", "mock"],
+        "wikipedia_endpoint": "https://en.wikipedia.org/w/api.php",
+        "wiktionary_endpoint": "https://en.wiktionary.org/w/api.php",
+        "max_retries": 3,
+        "timeout": 10,
         "fallback_terms": [
             "brilliant",
             "chuffed",

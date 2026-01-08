@@ -94,6 +94,35 @@ class DatabaseManager:
                 )
             ''')
             
+            # Table to track which sources/locations have been searched
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS searched_locations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_type TEXT NOT NULL,
+                    source_identifier TEXT NOT NULL,
+                    search_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    terms_found INTEGER DEFAULT 0,
+                    UNIQUE(source_type, source_identifier)
+                )
+            ''')
+            
+            # Table to cache API search results
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS term_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    term TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    definition TEXT,
+                    example TEXT,
+                    category TEXT,
+                    polish TEXT,
+                    pronunciation TEXT,
+                    source_type TEXT,
+                    source_url TEXT,
+                    cache_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    added_to_database BOOLEAN DEFAULT 0
+                )
+            ''')
+            
             conn.commit()
             conn.close()
     
@@ -254,3 +283,112 @@ class DatabaseManager:
                 'total_searches': total_searches,
                 'database_path': self.db_path
             }
+    
+    def mark_location_searched(self, source_type, source_identifier, terms_found=0):
+        """Mark a location/source as searched."""
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    INSERT OR REPLACE INTO searched_locations (source_type, source_identifier, search_date, terms_found)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, ?)
+                ''', (source_type, source_identifier, terms_found))
+                
+                conn.commit()
+                conn.close()
+                return True
+            except Exception as e:
+                if conn:
+                    conn.close()
+                print(f"Error marking location searched: {e}")
+                return False
+    
+    def is_location_searched(self, source_type, source_identifier):
+        """Check if a location has already been searched."""
+        with self._lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id FROM searched_locations 
+                WHERE source_type = ? AND source_identifier = ?
+            ''', (source_type, source_identifier))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            return result is not None
+    
+    def add_to_cache(self, term, definition='', example='', category='', polish='', pronunciation='', source_type='', source_url=''):
+        """Add a term to the cache."""
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    INSERT OR IGNORE INTO term_cache 
+                    (term, definition, example, category, polish, pronunciation, source_type, source_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (term, definition, example, category, polish, pronunciation, source_type, source_url))
+                
+                conn.commit()
+                conn.close()
+                return True
+            except Exception as e:
+                if conn:
+                    conn.close()
+                print(f"Error adding to cache: {e}")
+                return False
+    
+    def get_cached_term(self, term):
+        """Get a term from cache if it exists."""
+        with self._lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT term, definition, example, category, polish, pronunciation, source_type, source_url
+                FROM term_cache
+                WHERE term = ? COLLATE NOCASE
+            ''', (term,))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            return result
+    
+    def mark_cache_added_to_db(self, term):
+        """Mark a cached term as added to the main database."""
+        with self._lock:
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    UPDATE term_cache SET added_to_database = 1
+                    WHERE term = ? COLLATE NOCASE
+                ''', (term,))
+                
+                conn.commit()
+                conn.close()
+                return True
+            except Exception as e:
+                if conn:
+                    conn.close()
+                print(f"Error marking cache as added: {e}")
+                return False
+    
+    def get_uncached_terms_count(self):
+        """Get count of cached terms not yet added to database."""
+        with self._lock:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT COUNT(*) FROM term_cache WHERE added_to_database = 0')
+            count = cursor.fetchone()[0]
+            
+            conn.close()
+            return count

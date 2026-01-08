@@ -58,7 +58,7 @@ class BritishDaysApp:
         
         # Initialize components
         self.db = DatabaseManager()
-        self.searcher = SlangSearcher()
+        self.searcher = SlangSearcher(db_manager=self.db)
         self.assets = AssetLoader()
         
         # Search state
@@ -382,13 +382,27 @@ class BritishDaysApp:
         self.tree.heading('polish', text='Polski')
         self.tree.heading('pronunciation', text='Wymowa')
         
-        self.tree.column('#0', width=50, stretch=False)
-        self.tree.column('term', width=120)
-        self.tree.column('definition', width=250)
-        self.tree.column('example', width=200)
-        self.tree.column('category', width=100)
-        self.tree.column('polish', width=150)
-        self.tree.column('pronunciation', width=120)
+        # Load column widths from config or use defaults
+        column_widths = self.config.get('column_widths', {
+            '#0': 50,
+            'term': 120,
+            'definition': 250,
+            'example': 200,
+            'category': 100,
+            'polish': 150,
+            'pronunciation': 120
+        })
+        
+        self.tree.column('#0', width=column_widths.get('#0', 50), stretch=False)
+        self.tree.column('term', width=column_widths.get('term', 120))
+        self.tree.column('definition', width=column_widths.get('definition', 250))
+        self.tree.column('example', width=column_widths.get('example', 200))
+        self.tree.column('category', width=column_widths.get('category', 100))
+        self.tree.column('polish', width=column_widths.get('polish', 150))
+        self.tree.column('pronunciation', width=column_widths.get('pronunciation', 120))
+        
+        # Bind column resize event to save widths
+        self.tree.bind('<ButtonRelease-1>', self._on_column_resize)
         
         # Configure style
         style = ttk.Style()
@@ -472,6 +486,23 @@ class BritishDaysApp:
         self.log_text.config(state=tk.DISABLED)
         self.root.update()
     
+    def _on_column_resize(self, event):
+        """Handle column resize and save widths to config."""
+        # Save current column widths
+        column_widths = {}
+        for col in ['#0', 'term', 'definition', 'example', 'category', 'polish', 'pronunciation']:
+            column_widths[col] = self.tree.column(col, 'width')
+        
+        # Update config
+        self.config['column_widths'] = column_widths
+        
+        # Save to file
+        try:
+            with open('config.json', 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving column widths: {e}")
+    
     def animate_search_icon(self):
         """Animate the search progress icon (rotate)."""
         if self.is_searching and hasattr(self, 'progress_icon'):
@@ -500,9 +531,11 @@ class BritishDaysApp:
     def _auto_search_worker(self):
         """Worker thread for automatic searching."""
         search_count = 0
-        max_searches = 50
+        consecutive_failures = 0
+        max_consecutive_failures = 10
         
-        while self.is_searching and search_count < max_searches:
+        # No limit on max_searches - keep searching until stopped or too many failures
+        while self.is_searching and consecutive_failures < max_consecutive_failures:
             try:
                 existing_terms = {term[1].lower() for term in self.db.get_all_terms()}
                 result = self.searcher.search_new_slang()
@@ -514,6 +547,7 @@ class BritishDaysApp:
                         self.root.after(0, self.log_message, 
                                       f"Duplikat: '{result['term']}' już jest w bazie danych", 
                                       "DUPLICATE")
+                        consecutive_failures += 1
                     else:
                         success, term_id = self.db.add_term(
                             result['term'],
@@ -531,16 +565,21 @@ class BritishDaysApp:
                                           "SUCCESS")
                             self.root.after(0, self.refresh_display)
                             search_count += 1
+                            consecutive_failures = 0  # Reset on success
                         else:
                             self.root.after(0, self.log_message, 
                                           f"Nie udało się dodać: '{result['term']}'", 
                                           "ERROR")
+                            consecutive_failures += 1
+                else:
+                    consecutive_failures += 1
                 
                 time.sleep(0.8)
                 
             except Exception as e:
                 self.root.after(0, self.log_message, f"Błąd: {str(e)}", "ERROR")
-                break
+                consecutive_failures += 1
+                time.sleep(1)
         
         self.root.after(0, self._search_completed, search_count)
     
