@@ -85,6 +85,20 @@ class SlangSearcher:
         # Fallback to mock if all APIs fail
         return self._mock_search()
     
+    def _cache_search_result(self, result):
+        """Cache a search result to the database."""
+        if self.db and result:
+            self.db.add_to_cache(
+                term=result['term'],
+                definition=result['definition'],
+                example=result['example'],
+                category=result['category'],
+                polish=result['polish'],
+                pronunciation=result['pronunciation'],
+                source_type=result['source'],
+                source_url=result['source_url']
+            )
+    
     def _search_wikipedia(self):
         """Search Wikipedia for British slang terms."""
         endpoint = self.search_config.get('wikipedia_endpoint', 'https://en.wikipedia.org/w/api.php')
@@ -99,8 +113,8 @@ class SlangSearcher:
             'cmtype': 'page'
         }
         
-        # Add continuation token if we have one
-        if self.wikipedia_continuation:
+        # Add continuation token if we have one (validate it's a string)
+        if self.wikipedia_continuation and isinstance(self.wikipedia_continuation, str):
             params['cmcontinue'] = self.wikipedia_continuation
         
         try:
@@ -181,18 +195,8 @@ class SlangSearcher:
                             'search_date': datetime.now().isoformat()
                         }
                         
-                        # Cache the result - explicitly pass expected parameters
-                        if self.db:
-                            self.db.add_to_cache(
-                                term=result['term'],
-                                definition=result['definition'],
-                                example=result['example'],
-                                category=result['category'],
-                                polish=result['polish'],
-                                pronunciation=result['pronunciation'],
-                                source_type=result['source'],
-                                source_url=result['source_url']
-                            )
+                        # Cache the result using helper method
+                        self._cache_search_result(result)
                         
                         return result
                 
@@ -298,18 +302,8 @@ class SlangSearcher:
                         'search_date': datetime.now().isoformat()
                     }
                     
-                    # Cache the result - explicitly pass expected parameters
-                    if self.db:
-                        self.db.add_to_cache(
-                            term=result['term'],
-                            definition=result['definition'],
-                            example=result['example'],
-                            category=result['category'],
-                            polish=result['polish'],
-                            pronunciation=result['pronunciation'],
-                            source_type=result['source'],
-                            source_url=result['source_url']
-                        )
+                    # Cache the result using helper method
+                    self._cache_search_result(result)
                     
                     return result
             
