@@ -35,7 +35,7 @@ class SlangSearcher:
         
         # Track current search state
         self.current_source_index = 0
-        self.wikipedia_search_offset = 0
+        self.wikipedia_continuation = None  # Wikipedia API continuation token
         self.wiktionary_letter_index = 0
     
     def _load_config(self, config_path):
@@ -96,9 +96,12 @@ class SlangSearcher:
             'list': 'categorymembers',
             'cmtitle': 'Category:British slang',
             'cmlimit': 50,
-            'cmtype': 'page',
-            'cmcontinue': self.wikipedia_search_offset
+            'cmtype': 'page'
         }
+        
+        # Add continuation token if we have one
+        if self.wikipedia_continuation:
+            params['cmcontinue'] = self.wikipedia_continuation
         
         try:
             timeout = self.search_config.get('timeout', 10)
@@ -108,13 +111,24 @@ class SlangSearcher:
             
             members = data.get('query', {}).get('categorymembers', [])
             
+            # Store continuation token for next search if available
+            if 'continue' in data:
+                self.wikipedia_continuation = data['continue'].get('cmcontinue')
+            else:
+                # Reset to beginning if no more results
+                self.wikipedia_continuation = None
+            
             if not members:
-                # Reset offset and try again
-                self.wikipedia_search_offset = 0
-                params['cmcontinue'] = 0
+                # Reset and try again from the beginning
+                self.wikipedia_continuation = None
+                params.pop('cmcontinue', None)
                 response = self.session.get(endpoint, params=params, timeout=timeout)
                 data = response.json()
                 members = data.get('query', {}).get('categorymembers', [])
+                
+                # Update continuation for next time
+                if 'continue' in data:
+                    self.wikipedia_continuation = data['continue'].get('cmcontinue')
             
             if members:
                 # Get a random article from the results
@@ -124,7 +138,6 @@ class SlangSearcher:
                 # Check if already searched this page
                 if self.db and self.db.is_location_searched('wikipedia', page_title):
                     # Try next one
-                    self.wikipedia_search_offset += 1
                     return None
                 
                 # Get article content
@@ -182,8 +195,6 @@ class SlangSearcher:
                             )
                         
                         return result
-                
-                self.wikipedia_search_offset += 1
                 
         except Exception as e:
             print(f"Wikipedia search error: {e}")

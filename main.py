@@ -66,6 +66,9 @@ class BritishDaysApp:
         self.search_thread = None
         self.search_gif_frame = 0
         
+        # Column resize state (for debouncing)
+        self.column_resize_timer = None
+        
         # Setup window
         self._setup_window()
         
@@ -487,7 +490,16 @@ class BritishDaysApp:
         self.root.update()
     
     def _on_column_resize(self, event):
-        """Handle column resize and save widths to config."""
+        """Handle column resize and save widths to config with debouncing."""
+        # Cancel previous timer if it exists
+        if self.column_resize_timer:
+            self.root.after_cancel(self.column_resize_timer)
+        
+        # Schedule save after 500ms of no resize events (debounce)
+        self.column_resize_timer = self.root.after(500, self._save_column_widths)
+    
+    def _save_column_widths(self):
+        """Save current column widths to config file."""
         # Save current column widths
         column_widths = {}
         for col in ['#0', 'term', 'definition', 'example', 'category', 'polish', 'pronunciation']:
@@ -528,7 +540,7 @@ class BritishDaysApp:
         self.search_thread = threading.Thread(target=self._auto_search_worker, daemon=True)
         self.search_thread.start()
     
-    def _increment_search_failure(self, reason, message, level="DUPLICATE"):
+    def _increment_search_failure(self, message, level="DUPLICATE"):
         """Helper method to increment failure counter and log consistently."""
         self.root.after(0, self.log_message, message, level)
         return 1  # Return 1 to increment the counter
@@ -550,7 +562,6 @@ class BritishDaysApp:
                     
                     if term_lower in existing_terms:
                         consecutive_failures += self._increment_search_failure(
-                            "duplicate",
                             f"Duplikat: '{result['term']}' już jest w bazie danych",
                             "DUPLICATE"
                         )
@@ -574,13 +585,11 @@ class BritishDaysApp:
                             consecutive_failures = 0  # Reset on success
                         else:
                             consecutive_failures += self._increment_search_failure(
-                                "add_failed",
                                 f"Nie udało się dodać: '{result['term']}'",
                                 "ERROR"
                             )
                 else:
                     consecutive_failures += self._increment_search_failure(
-                        "no_result",
                         "Brak wyników z wyszukiwania",
                         "ERROR"
                     )
@@ -589,7 +598,6 @@ class BritishDaysApp:
                 
             except Exception as e:
                 consecutive_failures += self._increment_search_failure(
-                    "exception",
                     f"Błąd: {str(e)}",
                     "ERROR"
                 )
