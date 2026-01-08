@@ -89,7 +89,7 @@ try:
     terms = db.get_all_terms()
     print(f"\n   Sample terms from database:")
     for i, term in enumerate(terms[:3], 1):
-        term_id, term_name, definition, example, category, date_added, source = term
+        term_id, term_name, definition, example, category, date_added, source, polish, pronunciation = term
         print(f"   {i}. {term_name}: {definition[:40]}...")
     
     print("\n   ✓ Integration test: PASSED")
