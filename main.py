@@ -528,6 +528,11 @@ class BritishDaysApp:
         self.search_thread = threading.Thread(target=self._auto_search_worker, daemon=True)
         self.search_thread.start()
     
+    def _increment_search_failure(self, reason, message, level="DUPLICATE"):
+        """Helper method to increment failure counter and log consistently."""
+        self.root.after(0, self.log_message, message, level)
+        return 1  # Return 1 to increment the counter
+    
     def _auto_search_worker(self):
         """Worker thread for automatic searching."""
         search_count = 0
@@ -544,10 +549,11 @@ class BritishDaysApp:
                     term_lower = result['term'].lower()
                     
                     if term_lower in existing_terms:
-                        self.root.after(0, self.log_message, 
-                                      f"Duplikat: '{result['term']}' już jest w bazie danych", 
-                                      "DUPLICATE")
-                        consecutive_failures += 1
+                        consecutive_failures += self._increment_search_failure(
+                            "duplicate",
+                            f"Duplikat: '{result['term']}' już jest w bazie danych",
+                            "DUPLICATE"
+                        )
                     else:
                         success, term_id = self.db.add_term(
                             result['term'],
@@ -567,18 +573,26 @@ class BritishDaysApp:
                             search_count += 1
                             consecutive_failures = 0  # Reset on success
                         else:
-                            self.root.after(0, self.log_message, 
-                                          f"Nie udało się dodać: '{result['term']}'", 
-                                          "ERROR")
-                            consecutive_failures += 1
+                            consecutive_failures += self._increment_search_failure(
+                                "add_failed",
+                                f"Nie udało się dodać: '{result['term']}'",
+                                "ERROR"
+                            )
                 else:
-                    consecutive_failures += 1
+                    consecutive_failures += self._increment_search_failure(
+                        "no_result",
+                        "Brak wyników z wyszukiwania",
+                        "ERROR"
+                    )
                 
                 time.sleep(0.8)
                 
             except Exception as e:
-                self.root.after(0, self.log_message, f"Błąd: {str(e)}", "ERROR")
-                consecutive_failures += 1
+                consecutive_failures += self._increment_search_failure(
+                    "exception",
+                    f"Błąd: {str(e)}",
+                    "ERROR"
+                )
                 time.sleep(1)
         
         self.root.after(0, self._search_completed, search_count)

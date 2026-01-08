@@ -168,9 +168,18 @@ class SlangSearcher:
                             'search_date': datetime.now().isoformat()
                         }
                         
-                        # Cache the result
+                        # Cache the result - explicitly pass expected parameters
                         if self.db:
-                            self.db.add_to_cache(**result)
+                            self.db.add_to_cache(
+                                term=result['term'],
+                                definition=result['definition'],
+                                example=result['example'],
+                                category=result['category'],
+                                polish=result['polish'],
+                                pronunciation=result['pronunciation'],
+                                source_type=result['source'],
+                                source_url=result['source_url']
+                            )
                         
                         return result
                 
@@ -278,9 +287,18 @@ class SlangSearcher:
                         'search_date': datetime.now().isoformat()
                     }
                     
-                    # Cache the result
+                    # Cache the result - explicitly pass expected parameters
                     if self.db:
-                        self.db.add_to_cache(**result)
+                        self.db.add_to_cache(
+                            term=result['term'],
+                            definition=result['definition'],
+                            example=result['example'],
+                            category=result['category'],
+                            polish=result['polish'],
+                            pronunciation=result['pronunciation'],
+                            source_type=result['source'],
+                            source_url=result['source_url']
+                        )
                     
                     return result
             
