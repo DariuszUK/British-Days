@@ -19,7 +19,15 @@ class AssetLoader:
     """Loads and scales various image formats for GUI."""
     
     def __init__(self, assets_dir='assets'):
-        self.assets_dir = assets_dir
+        # Get the correct assets directory path (works for both script and exe)
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # Running as script
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        self.assets_dir = os.path.join(base_path, assets_dir)
         self.cache = {}
     
     def load(self, filename, size=None):
@@ -132,14 +140,72 @@ class BritishDaysApp:
         except:
             pass
         
-        # Load search progress GIF (animated)
-        # For now, we'll use static image and animate manually
-        self.img_search_progress = self.assets.load('btn_search.png', (50, 50))  # Reuse: 50x50
+        # Load animated progress GIF with scaling multiplier
+        # progress.gif - can be scaled with multiplier (e.g., 2.0 for double size)
+        self.progress_gif_multiplier = 2.0  # Adjust this to scale the GIF
+        self.progress_gif_frames = self._load_gif_frames('progress.gif', self.progress_gif_multiplier)
+        self.progress_frame_index = 0
         
         # Small icons for buttons: 24x24
         self.img_icon_edit = self.assets.load('btn_refresh.png', (24, 24))  # Reuse as edit icon
         self.img_icon_delete = self.assets.load('btn_exit.png', (24, 24))  # Reuse as delete icon
         self.img_icon_add = self.assets.load('btn_search.png', (24, 24))  # Reuse as add icon
+    
+    def _load_gif_frames(self, filename, multiplier=1.0):
+        """Load all frames from an animated GIF with scaling multiplier."""
+        frames = []
+        try:
+            # Get correct path (works for both script and exe)
+            if getattr(sys, 'frozen', False):
+                base_path = os.path.dirname(sys.executable)
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            
+            path = os.path.join(base_path, 'assets', filename)
+            
+            if not os.path.exists(path):
+                print(f"Warning: GIF file not found at {path}")
+                return []
+            
+            gif = Image.open(path)
+            
+            # Get original size
+            original_width, original_height = gif.size
+            
+            # Calculate new size with multiplier
+            new_width = int(original_width * multiplier)
+            new_height = int(original_height * multiplier)
+            
+            # Extract all frames
+            try:
+                while True:
+                    # Copy current frame
+                    frame = gif.copy()
+                    
+                    # Convert to RGBA if needed
+                    if frame.mode != 'RGBA':
+                        frame = frame.convert('RGBA')
+                    
+                    # Scale the frame
+                    if multiplier != 1.0:
+                        frame = frame.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # Convert to PhotoImage
+                    photo = ImageTk.PhotoImage(frame)
+                    frames.append(photo)
+                    
+                    # Move to next frame
+                    gif.seek(gif.tell() + 1)
+            except EOFError:
+                pass  # End of frames
+            
+            print(f"✓ Loaded {len(frames)} frames from {filename} (scaled to {new_width}x{new_height})")
+            return frames
+            
+        except Exception as e:
+            print(f"Failed to load GIF {filename}: {e}")
+            print(f"Expected path: {path if 'path' in locals() else 'unknown'}")
+            return []
     
     def _create_gui(self):
         """Create the main GUI."""
@@ -421,11 +487,52 @@ class BritishDaysApp:
         log_label_frame.pack(fill=tk.BOTH, padx=10, pady=5)
         
         # Progress GIF area (animated icon)
-        self.progress_canvas = tk.Canvas(log_label_frame, width=50, height=50, bg='#ECF0F1', highlightthickness=0)
-        self.progress_canvas.pack(side=tk.LEFT, padx=10)
-        
-        if self.img_search_progress:
-            self.progress_icon = self.progress_canvas.create_image(25, 25, image=self.img_search_progress)
+        # Calculate canvas size based on scaled GIF size
+        if self.progress_gif_frames:
+            # Get size from first frame (all frames should be same size)
+            gif_width = self.progress_gif_frames[0].width()
+            gif_height = self.progress_gif_frames[0].height()
+            
+            self.progress_canvas = tk.Canvas(
+                log_label_frame, 
+                width=gif_width, 
+                height=gif_height, 
+                bg='#ECF0F1', 
+                highlightthickness=0
+            )
+            self.progress_canvas.pack(side=tk.LEFT, padx=10, pady=5)
+            
+            # Create image object on canvas (will be updated with GIF frames)
+            self.progress_icon = self.progress_canvas.create_image(
+                gif_width // 2, 
+                gif_height // 2, 
+                image=self.progress_gif_frames[0]
+            )
+        else:
+            # Fallback: show static icon or text if GIF failed to load
+            gif_width, gif_height = 64, 64
+            self.progress_canvas = tk.Canvas(
+                log_label_frame, 
+                width=gif_width, 
+                height=gif_height, 
+                bg='#ECF0F1', 
+                highlightthickness=0
+            )
+            self.progress_canvas.pack(side=tk.LEFT, padx=10, pady=5)
+            
+            # Draw a simple circle as fallback
+            self.progress_icon = self.progress_canvas.create_oval(
+                10, 10, gif_width-10, gif_height-10,
+                outline='#3498DB',
+                width=3
+            )
+            self.progress_canvas.create_text(
+                gif_width // 2, 
+                gif_height // 2,
+                text="⏳",
+                font=('Arial', 24),
+                fill='#3498DB'
+            )
         
         # Log text area
         log_text_frame = tk.Frame(log_label_frame, bg='#ECF0F1')
@@ -441,10 +548,6 @@ class BritishDaysApp:
             wrap=tk.WORD
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
-        
-        # Progress bar
-        self.progress_bar = ttk.Progressbar(log_label_frame, mode='indeterminate')
-        self.progress_bar.pack(fill=tk.X, padx=10, pady=(0, 5))
         
         # Initial log message
         self.log_message("Aplikacja gotowa do działania! Kliknij 'Search' aby znaleźć nowe frazy.", "INFO")
@@ -473,13 +576,27 @@ class BritishDaysApp:
         self.root.update()
     
     def animate_search_icon(self):
-        """Animate the search progress icon (rotate)."""
-        if self.is_searching and hasattr(self, 'progress_icon'):
-            # Simple rotation animation
-            self.search_gif_frame = (self.search_gif_frame + 10) % 360
-            # Note: For actual rotation, you'd need to rotate the image
-            # For now, just show it's active
-            self.root.after(100, self.animate_search_icon)
+        """Animate the search progress GIF."""
+        if self.is_searching and self.progress_gif_frames:
+            # Update to next frame
+            self.progress_frame_index = (self.progress_frame_index + 1) % len(self.progress_gif_frames)
+            
+            # Update canvas image with current frame
+            self.progress_canvas.itemconfig(
+                self.progress_icon, 
+                image=self.progress_gif_frames[self.progress_frame_index]
+            )
+            
+            # Schedule next frame update (adjust delay for smoother/faster animation)
+            # Typical GIF delay is 50-100ms per frame
+            self.root.after(50, self.animate_search_icon)
+        elif not self.is_searching and self.progress_gif_frames:
+            # Reset to first frame when stopped
+            self.progress_frame_index = 0
+            self.progress_canvas.itemconfig(
+                self.progress_icon, 
+                image=self.progress_gif_frames[0]
+            )
     
     def start_auto_search(self):
         """Start automatic search in background thread."""
@@ -489,9 +606,10 @@ class BritishDaysApp:
         self.is_searching = True
         if hasattr(self, 'btn_stop'):
             self.btn_stop.config(state=tk.NORMAL)
-        self.progress_bar.start(10)
         
         self.log_message("🚀 Rozpoczynam automatyczne wyszukiwanie nowych fraz...", "INFO")
+        
+        # Start GIF animation
         self.animate_search_icon()
         
         self.search_thread = threading.Thread(target=self._auto_search_worker, daemon=True)
@@ -547,9 +665,17 @@ class BritishDaysApp:
     def _search_completed(self, count):
         """Called when search is completed."""
         self.is_searching = False
-        self.progress_bar.stop()
         if hasattr(self, 'btn_stop'):
             self.btn_stop.config(state=tk.DISABLED)
+        
+        # Stop GIF animation and reset to first frame
+        if self.progress_gif_frames:
+            self.progress_frame_index = 0
+            self.progress_canvas.itemconfig(
+                self.progress_icon, 
+                image=self.progress_gif_frames[0]
+            )
+        
         self.log_message(f"🎉 Wyszukiwanie zakończone! Dodano {count} nowych fraz.", "SUCCESS")
     
     def stop_search(self):
